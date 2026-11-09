@@ -54,6 +54,36 @@ def main() -> int:
     papers = bench.ask("What is the retention period for board papers?")
     check("pdf answer", papers.status == "answer" and "7" in papers.text, papers.text)
 
+    summary = bench.summarize("What is the retention period for board papers?")
+    check("summary cites", summary.status == "summary" and "7" in summary.text, summary.text)
+    check(
+        "summary quote is source",
+        summary.quotes and summary.quotes[0].text in _source_text(samples, summary.quotes[0].doc_id),
+    )
+    leave_summary = bench.summarize("How many days of leave may an employee take?")
+    check("summary skips a weak scan", "18" not in leave_summary.text, leave_summary.text)
+
+    note = bench.draft("What is Rahul Verma's bonus?")
+    check("draft from the cell", note.status == "draft" and "1,50,000" in note.text and "1,80,000" not in note.text, note.text)
+    notice_note = bench.draft("What notice period does the Northwind contract require?")
+    check("draft does not pick a side", notice_note.status == "conflict", notice_note.text)
+
+    import shutil
+    import tempfile
+
+    scratch = Path(tempfile.mkdtemp())
+    copied = scratch / "set"
+    shutil.copytree(samples, copied)
+    fresh = Workbench(copied, log_path=scratch / "events.log")
+    before = fresh.manifest
+    check("refresh is quiet", fresh.refresh() is False)
+    scan = copied / "leave_policy.scan.txt"
+    scan.write_text(scan.read_text(encoding="utf-8") + "\nRevised scan line without a pay figure.\n", encoding="utf-8")
+    check("refresh sees the edit", fresh.refresh() is True)
+    check("manifest moved", fresh.manifest != before)
+    again = fresh.ask("What is Rahul Verma's bonus?")
+    check("bonus survives refresh", "1,50,000" in again.text, again.text)
+
     leave = bench.ask("How many days of leave may an employee take?")
     check("scan refused", leave.status == "refuse", leave.text)
     check("scan hides the figure", "18" not in leave.text, leave.text)

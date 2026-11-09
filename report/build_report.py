@@ -9,7 +9,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Inches, Pt, RGBColor
 
-OUT_DIR = Path(r"C:\Users\Shreedhar Gupta\AppData\Local\Temp\sourcedesk_report")
+OUT_DIR = Path(__file__).resolve().parent
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 DOCX = OUT_DIR / "ShreedharGupta_IITK_ProblemC.docx"
 
@@ -32,7 +32,7 @@ Neha, an HR partner, asks for one bonus among several hundred employees. Rahul, 
 
 Each span is stored twice, as Module 1.3 combines a neural model with an n-gram model. BM25 runs on words and on 5-grams. Module 1.1 trusts a higher-order gram when its count is large and falls back when the count is small, so a 5-gram hit on a name or a figure is specific and a word hit still recalls a paraphrase. The other view is a 256-dimensional mean pool of the span, so bank in a cheque clause is not bank by a river. The blend is 0.75 lexical and 0.25 dense, the encoder weight kept on the earlier task. That task was prior-case retrieval. The weight will be retuned here, and until then the lexical term leads.
 
-The blender keeps the top 8 spans. Below a threshold fit on held-out questions, the answer is that the documents do not say. If two spans both clear it and state different numbers, both are shown. A salary is not a mean of two cells.
+The blender keeps the top 8 spans. No shared content word means the documents do not say. A second span appears only if it clears a held-out cutoff and states another number. A salary is not a mean of two cells.
 
 The sentence on the screen is extractive. Each quoted line is a substring of its span. A stitcher may add one sentence, decoded greedily. Temperature does not change greedy decoding except on ties, while sampling can change a digit, so the decoder does not sample. The stitcher only joins quotes. A checker pulls every number, date, and capitalised name from the sentence. Each must occur in the cited span. A failure drops the sentence. The quotes remain. Smoothing, in Module 1.1, gives leftover probability to unseen grams so a model still answers. A string absent from the span is a refusal.
 
@@ -58,7 +58,7 @@ I set aside a cloud model, because the file would leave the laptop. I set aside 
 
 One sequence of cache, at 2 FP16 bytes per value, is 2 × layers × key-value heads × head size × length × 2. For 28 layers, 2 key-value heads, head size 128, and 2,048 tokens, that is about 56 MB. The 1.5 billion weights are 1.5×10^9 × 0.5 = 0.75 GB, so Tier B uses about 0.8 GB while answering and then unloads. Idle is the index: about 48 MB for 6 million postings at 8 bytes, and about 7 MB for 15,000 pools of 256 dimensions at 2 bytes. Idle stays under about 200 MB.
 
-The times are estimates from these rates. Parsing 180 MB at 10 MB/s takes 18 seconds. Sixty scanned pages take 60 seconds at 1 second on the CPU and 18 seconds at 0.3 seconds on the GPU. BM25 at 2 microseconds a token takes 12 seconds. Embedding 15,000 spans takes 600 seconds at 40 ms on the CPU and 60 seconds at 4 ms on the GPU. A probe is tens of milliseconds. If the GPU is busy, the battery is under 20 percent, or free disk is under 2 GB, embedding pauses and the stitcher unloads. Quotes and the checker remain, and the screen says the mode is reduced.""",
+The times are estimates from these rates. Parsing 180 MB at 10 MB/s takes 18 seconds. Sixty scanned pages take 60 seconds at 1 second on the CPU and 18 seconds at 0.3 seconds on the GPU. BM25 at 2 microseconds a token takes 12 seconds. Embedding 15,000 spans takes 600 seconds at 40 ms on the CPU and 60 seconds at 4 ms on the GPU. If the GPU is busy, the battery is under 20 percent, or free disk is under 2 GB, embedding pauses and the stitcher unloads. The process stays at low priority and resumes when the GPU, the battery, and the disk recover. Quotes and the checker remain. The screen says the mode is reduced.""",
     ),
     (
         "6. Privacy, safety and reliability",

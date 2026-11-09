@@ -122,12 +122,19 @@ def load_path(path: Path) -> list[Page]:
     ]
 
 
-def load_dir(folder: Path) -> Corpus:
+def source_files(folder: Path) -> list[Path]:
     folder = Path(folder)
-    pages: list[Page] = []
+    found = []
     for path in sorted(folder.rglob("*")):
-        if not path.is_file():
+        if not path.is_file() or ".sourcedesk" in path.parts:
             continue
         if path.suffix.lower() in {".pdf", ".docx", ".xlsx", ".txt", ".md"} or path.name.endswith(".scan.txt"):
-            pages.extend(load_path(path))
+            found.append(path)
+    return found
+
+
+def load_dir(folder: Path) -> Corpus:
+    pages: list[Page] = []
+    for path in source_files(folder):
+        pages.extend(load_path(path))
     return Corpus(pages=pages)

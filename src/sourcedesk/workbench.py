@@ -13,7 +13,7 @@ from sourcedesk.answer import Quote, best_line, checked_stitch, content_terms
 from sourcedesk.bm25 import BM25Index
 from sourcedesk.chunk import Span, pack_pages
 from sourcedesk.dense import cosine, embed
-from sourcedesk.ingest import load_dir
+from sourcedesk.ingest import Corpus, load_dir, load_path, source_files
 from sourcedesk.privacy import log_event
 from sourcedesk.tiers import Tier, probe, serving_mode
 from sourcedesk.verify import NUMBER
@@ -68,10 +68,41 @@ class Workbench:
             self.manifest = ""
             return
         self.spans = pack_pages(self.corpus)
+        self._reindex()
+        self._snap = self._snapshot()
+        self._cache: dict[tuple[str, str, str], Answer] = {}
+
+    def _reindex(self) -> None:
         self.bm25 = BM25Index(self.spans)
         self.vectors = np.vstack([embed(span.text) for span in self.spans]) if self.spans else np.zeros((0, 256))
         self.manifest = self._manifest()
-        self._cache: dict[tuple[str, str, str], Answer] = {}
+
+    def _snapshot(self) -> dict[str, tuple[int, int]]:
+        snap = {}
+        for path in source_files(self.folder):
+            stat = path.stat()
+            snap[str(path.resolve())] = (stat.st_mtime_ns, stat.st_size)
+        return snap
+
+    def refresh(self) -> bool:
+        """Reparse only files whose size or modified time changed, then replace their postings."""
+        if not self.tier.opens_corpus:
+            return False
+        snap = self._snapshot()
+        if snap == self._snap:
+            return False
+        changed = {path for path, sig in snap.items() if self._snap.get(path) != sig}
+        removed = set(self._snap) - set(snap)
+        touched = changed | removed
+        kept = [span for span in self.spans if str(Path(span.path).resolve()) not in touched]
+        added: list[Span] = []
+        for path in sorted(changed & set(snap)):
+            added.extend(pack_pages(Corpus(load_path(Path(path)))))
+        self.spans = kept + added
+        self._reindex()
+        self._snap = snap
+        self._cache.clear()
+        return True
 
     def _manifest(self) -> str:
         digest = hashlib.sha256()
@@ -88,7 +119,12 @@ class Workbench:
         dense_scores = [cosine(query_vec, row) for row in self.vectors]
         lex_n = _minmax(lexical)
         dense_n = [(score + 1.0) / 2.0 for score in dense_scores]
-        blended = [LEXICAL * lex + DENSE * den for lex, den in zip(lex_n, dense_n)]
+        blended = []
+        for lex_raw, lex_unit, dense_unit in zip(lexical, lex_n, dense_n):
+            mixed = LEXICAL * lex_unit + DENSE * dense_unit
+            if lex_raw <= 0:
+                mixed = min(mixed, 0.01)
+            blended.append(mixed)
         order = sorted(range(len(self.spans)), key=lambda i: blended[i], reverse=True)
         hits = []
         for index in order[:k]:
@@ -196,6 +232,52 @@ class Workbench:
                 dropped=missing,
             )
         return Answer("answer", sentence, quotes=[quote], mode=mode, stitcher=stitcher)
+
+
+    def summarize(self, query: str, limit: int = 5) -> Answer:
+        """At most five source lines, each a substring of its span."""
+        if not self.tier.opens_corpus:
+            return Answer("refuse", "This laptop is below the 16 GB floor, so the set stays closed.", mode="reduced", stitcher="none")
+        query_terms = content_terms(query)
+        quotes: list[Quote] = []
+        seen: set[str] = set()
+        for hit in self.search(query):
+            if hit.lexical <= 0 or not (query_terms & content_terms(hit.span.text)):
+                continue
+            line = best_line(hit.span, query)
+            if not line or line not in hit.span.text or line in seen:
+                continue
+            seen.add(line)
+            quote = Quote(line, hit.span.doc_id, hit.span.locator, hit.span.ocr_confidence)
+            if quote.low_ocr and _numbers(line):
+                continue
+            quotes.append(quote)
+            if len(quotes) == limit:
+                break
+        if not quotes:
+            return Answer("refuse", "The documents do not say.", stitcher="none")
+        text = "\n".join(f"{quote.doc_id} ({quote.locator}): {quote.text}" for quote in quotes)
+        return Answer("summary", text, quotes=quotes, stitcher="none")
+
+    def draft(self, query: str) -> Answer:
+        """A note copied from quotes. A conflict is not collapsed into one figure."""
+        base = self.ask(query)
+        if base.status != "answer" or not base.quotes:
+            return Answer(base.status, base.text, quotes=base.quotes, mode=base.mode, stitcher="none", dropped=base.dropped)
+        note = f"Note: {base.quotes[0].text}"
+        from sourcedesk.verify import unsupported
+
+        missing = unsupported(note, base.quotes[0].text)
+        if missing:
+            return Answer(
+                "refuse",
+                "The draft added a figure that is not in the quote.",
+                quotes=base.quotes,
+                mode=base.mode,
+                stitcher="none",
+                dropped=missing,
+            )
+        return Answer("draft", note, quotes=base.quotes, mode=base.mode, stitcher="none")
 
 
 def compare_texts(left: str, right: str) -> dict[str, list[str]]:

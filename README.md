@@ -6,7 +6,7 @@ The round-1 write-up is `report/ShreedharGupta_IITK_ProblemC.docx`.
 
 ## What runs here
 
-Indexing, BM25 over words and 5-grams, a 256-dimensional hashed mean pool, extractive quotes, a checker, a version compare, a tier probe, and one CUDA forward pass on the laptop GPU. `train_later.py` prints the LoRA recipe from CS781 Module 4.1 and exits. It does not train.
+Indexing, separate word and 5-gram BM25 indexes, a 256-dimensional hashed mean pool, extractive quotes, a five-line summary, a draft that cannot add a figure, a version compare, a per-file refresh, a tier probe, and one CUDA forward pass on the laptop GPU. `train_later.py` prints the LoRA recipe from CS781 Module 4.1 and exits. It does not train.
 
 ## Smoke test
 
