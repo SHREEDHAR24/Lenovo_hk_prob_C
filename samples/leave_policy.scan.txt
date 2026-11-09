@@ -1,0 +1,2 @@
+OCR_CONFIDENCE=0.62
+An employee may take 18 days of leave.
